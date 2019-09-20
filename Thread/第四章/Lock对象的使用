@@ -1,0 +1,175 @@
+本章使用Lock对象实现同步的效果，Lock对象在功能上比synchronized更加丰富。本章着重掌握如下两个知识点：
+    1、ReentrantLock类的使用；
+    2、ReentrantReadWriteLock类的使用。
+
+  4.1   使用ReentrantLock类
+    java多线程可以使用synchronized关键字来实现线程间同步，不过JDK1.5新增加的ReentrantLock类也能达到同样的效果，并且在扩展功能上更加强大，
+    如具有嗅探锁定、多路分支通知等功能。
+
+  4.1.1 使用ReentrantLock实现同步
+    既然ReentrantLock类在功能上相比synchronized更多，那么下面就以一个初步的程序实例以下ReentrantLock类的使用方法.
+    ReentrantLockTest/MyService.java
+    从程序运行结果来看，只有当当前线程输出完毕之后将锁释放，其他线程才可以继续抢锁并输出，每个线程内输出的数据是有序的，
+    从1到5内，因为当前线程已经持有锁，具有互斥排他性，但线程之间输出的顺序是随机的，即谁抢到锁，谁输出。
+
+  4.1.2 验证多代码块间的同步性。
+    ConditionTestMoreMethod/MyService.java
+    此实例说明不管在一个方法还是多个方法的环境汇总，哪个线程持有锁，哪个线程就执行业务，其他线程只有等待锁被释放时再次争抢，抢到锁就开始执行业务，
+    运行效果和使用synchronized关键字一样。
+
+  注意：线程之间执行顺序是随机的。
+
+  4.13 await()方法的错误用法与更正
+        关键字synchronized与wait()、notify()/notifyAll()方法相结合可以实现wait/notify模式，ReentrantLock类也可以实现同样的功能，但需要借助于
+        Condition对象。Condition类是JDK5的技术，具有更好的灵活性，例如，可以实现多路通知功能，也就是在一个Lock对象中可以创建多个Condition实例，
+        线程对象注册在指定的Condition中，从而可以有选择性地进行线程通知，在调度线程上更加灵活。
+
+        在使用notify()/notifyAll()方法进行通知时，被通知的线程由JVM进行选择，而方法notifyAll()会通知所有的waiting线程，没有选择权，会出现相当大的效率
+        问题，但使用ReentrantLock结合Condition类可以实现 "选择性通知"，这个功能是Condition类默认提供的。
+
+        Condition对象的作用是控制并处理线程的状态，它可以使线程呈wait状态，也可以让线程继续运行。
+        await()方法的作用使当前线程在接到通知或被中断之前一直处于等待wait状态，它和wait()方法的作用一样。
+        创建项目UseConditionWaitNotifyError/MyService.java
+
+        报错的异常信息是监视器出错，解决这个问题的方法是必须在condition.await()方法调用之前调用lock.lock()代码获得锁。
+
+        正确的例子如下：z3_ok/MyService.java
+
+        控制台输出3个字母A，说明调用了Condition对象的await()方法将当前执行任务的线程转换成wait状态并释放锁。
+
+  4.1.4  使用await()和signal()实现wait/notify机制
+        创建项目UseConditionWaitNotifyOk/MyService.java
+
+        此实例成功实现wait/notify模式
+        Object类中的wait()方法相当于Condition类中的await()方法。
+        Object类中的wait(long timeout)方法相当于Condition类中的await(long time,TimeUnit unit)方法。
+        Object类中的notify()方法相当于Condition类中的signal()方法
+        Object类中的notify()方法相当于Condition类中的signalAll()方法。
+
+  4.1.8 实现生产者/消费者模式一对一交替输出
+    创建测试用的项目ConditionTest/MyService.java
+
+  4.1.9 实现生产者/消费者模式多对多交替输出
+    创建新的项目：ConditionTestManyToMany/ConditionTest.java
+    利用signalAll()解决假死问题。
+
+  4.1.10  公平锁与非公平锁
+  公平锁：采用先到先得的策略，每次获取锁之前都会检查队列里面有没有排队等待的线程，没有才会尝试获取锁，如果有就将当前线程追加到队列中。
+  非公平锁：采用"有机会插队"的策略，一个线程获取锁之前要先去尝试获取锁而不是在队列中等待，如果获取锁成功，则说明线程虽然是后启动的，
+  但先获得了锁，这就是"作弊插队"的效果。如果获取锁没有成功，那么才将自身追加到队列进行等待。
+  创建项目：Fair_noFair_test/MyService.java
+
+  测试结论：+++在前，- - -在后，说明- - -没有任何机会抢到锁，这就是公平锁的特点。
+
+  创建非公平锁测试：Test1_2.java
+
+  测试结论：程序运行多次后，使用非公平锁有可能在第2次输出- - - ，说明后启动的线程先抢到了锁，这就是非公平锁的特点。
+
+  4.1.11 public int getHoldCount()方法的使用
+    作用：查询 "当前线程"保持此锁定的个数，即调用lock()方法的次数。
+    测试用的项目：lockMethodTest1/MyService
+    结论：执行lock()方法进行锁重入导致count计数呈加1的效果，执行unlock()方法会被count呈减1的效果。
+
+  4.1.12 public final int getQueueLength()方法的使用
+    作用：返回正等待获取此锁的线程估计数，例如，这里有5个线程，其中1个线程长时间占有锁，那么调用getQueueLength()方法后，
+    其返回值是4，说明有4个线程在等待锁的释放。
+    测试用的项目：test2/Service.java
+
+  4.1.13 public int getWaitQueueLength(Condition condition)方法的使用
+    作用：返回等待与此锁相关的给定条件Condition的线程估计数。例如：这里有5个线程，每个线程都执行了同一个Condition对象的await()方法，
+    则调用getWaitQueueLength(Condition condition)方法时，其返回的int值是5.
+    创建名称为test3/Service.java
+
+  4.1.14 public final boolean hasQueuedThread(Thread thread)方法的使用
+    作用：查询指定的线程是否正在等待获取此锁，也就是判断参数中的线程是否在等待队列中。
+    创建测试用的项目lockMethodTest2/Service.java
+
+  4.1.15 public final boolean hasQueued Threads()方法的使用
+    作用：查询是否有线程正在等待获取此锁，也就是等待队列中是否有等待的线程。
+  创建测试用的项目：lockMethodTest3/Service.java
+
+  4.1.16 public boolean hasWaiters(Condition condition)方法的使用
+    作用：查询是否有线程正在等待此锁有关的condition条件，也就是是否有线程执行了condition对象中的wait()方法而呈等待状态。
+    而public int getWaitQueueLength(Condition condition)方法的作用是返回有多少个线程执行了condition对象中的await()方法而呈等待状态。
+    测试代码：hasWaiters/Service.java
+
+  4.1.17 public final boolean ifFair()方法的使用
+    作用：判断是不是公平锁
+    lockMethodTest3/Run.java
+    默认情况下，ReentrantLock类使用的是非公平锁。
+
+  4.1.18 public boolean isHeldByCurrentThread()方法的使用
+    作用：查询当前线程是否保持此锁。
+    isHeldByCurrentThread/Service.java
+
+  4.1.19 public boolean isLocked()方法的使用
+    作用：查询此锁是否由线程保持，并没有释放。
+    isLocked/Service.java
+
+  4.1.20 public void lockInterruptibly()方法的使用
+    作用：当某个线程尝试获得锁并且阻塞在lockInterruptibly()方法时，该线程可以被中断。
+    创建测试用的项目lockInterruptiblyTest/MyService.java
+  4.1.21 public boolean tryLock()方法的使用
+    作用：嗅探拿锁，如果当前线程发现锁被其他线程持有了，则返回false，线程继续执行后面的代码，而不是等待锁的状态。
+    测试代码：tryLockTest/MyService.java
+
+  4.1.22 public boolean tryLock(long timeout,TimeUnit unit)方法的使用
+    作用：嗅探拿锁，如果当前线程发现锁被其他线程持有了，则返回false，程序继续执行后面的代码，而不是呈阻塞等待锁的状态。
+    如果当前线程在指定的timeout内持有了锁，则返回值是true，超过时间则返回false。参数timeout代表当前线程抢锁的时间。
+    测试代码：tryLock_param/MyService.java
+
+  4.1.23 public boolean await(long time,TimeUnit unit)方法的使用
+    作用：自动唤醒线程的功能。
+
+  4.1.24 public long awaitNanos(long nanosTimeout)方法的使用
+    作用：具有自动唤醒线程的功能，时间单位是纳秒(ns)。
+
+  4.1.25 public boolean awaitUnit(Date deadline)方法的使用
+    作用：在指定的Date结束线程。
+    测试代码：awaitUnitTest/Service.java
+
+  4.1.26 public void awaitUninterruptibly()方法的使用
+    作用：实现线程在等待的过程中，不允许被中断
+    测试代码：awaitUninterruptiblyTest_1/Service.java
+
+  4.1.27 实现线程按顺序执业务
+    测试代码：condition123/MyService.java
+
+ 4.2  使用ReentrantReadWriteLock类
+    ReentrantLock类具有完全互斥排他的效果，同一时间只有一个线程在执行ReentrantLock.lock()方法后面的任务，这样做虽然保证了同时写实例变量
+    的线程安全性，但效率是非常低下的，所以JDK提供了一种读写锁——ReentrantReadWriteLock类，使用它可以在进行读操作时不需要同时执行，提升
+    运行速度，加快运行效率。
+        读写锁有两个锁：一个是读操作相关的锁，也称共享锁；另一个是写操作相关的锁，也称排他锁。
+
+        读锁之间不互斥，读锁和写锁互斥，写锁和写锁互斥，因此只要出现写锁，就会出现互斥同步的效果。
+
+        读操作是指读取实例变量的值，写操作是指向实例变量写入值。
+
+    4.2.1  ReentrantLock类的缺点
+        与ReentrantReadWriteLock类相比，ReentrantLock类的主要缺点是使用ReentrantLock对象时，所有操作都同步，哪怕只对实例变量进行读取操作，
+        这样会耗费大量的时间，降低运行效率。
+        测试代码：ReentranLock_end/MyService.java
+
+    4.2.2  ReentrantReadWriteLock类的使用——读读操作
+        测试代码：ReadWriteLockBegin1/MyService.java
+
+        总结：读写互斥，写读互斥，写写互斥，读读异步。
+
+    4.2.3  ReentrantReadWriteLock类的使用——写写互斥
+        ReadWriteLockBegin2/MyService.java
+
+        使用写锁代码lock.writeLock()的效果是同一时间只允许一个线程执行Lock()方法后面的代码。
+
+    4.2.4 ReentrantReadWriteLock类的使用——读写互斥
+        测试代码：ReadWriteLockBegin3/MyService.java
+        总结：只要出现写操作，就是互斥的。
+
+    4.2.5 ReentrnaReadWriteLock类的使用——写读操作
+    测试代码：ReadWriteLockBegin4/MyService.java
+    总结："读写" "写读" "写写" 都是互斥的，而 "读读" 是异步的，非互斥的。
+
+ 本章总结：可以使用Lock对象将synchronized关键字替换掉，而且其具有的独特功能也是synchronized所不具有的。在学习并发时，Lock是
+ synchronized关键字的进阶，掌握Lock有关知识助于学习并发包中源代码的实现原理，在并发包中，大量类使用Lock接口作为同步的处理方式。
+
+
+

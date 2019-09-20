@@ -1,0 +1,409 @@
+重点：
+    线程的启动
+    如何使线程暂停
+    如何使线程停止
+    线程的优先级
+    线程安全相关的问题
+
+  1.1  进程和多线程概述
+  进程：运行在内存种的exe文件可以理解成一个进程
+  线程：在进程种独立运行的子任务，例如QQ.exe，子任务是好友视频线程、下载文件线程、传输数据线程等
+
+  多线程的优点：可以在同一时间内执行更多不同的任务
+
+  在什么情况下使用多线程技术？
+
+  1）阻塞。一旦系统中出现了阻塞现象，则可以根据实际情况来使用多线程技能提高运行效率
+  2）依赖。业务分为两个执行过程，分别是A和B。当A业务发生阻塞情况时，B业务的执行不依赖A业务的执行结果，这时
+  可以使用多线程技术来提高运行效率；如果B业务的执行依赖A业务的执行结果，则可以不使用多线程而使用多线程，
+  要根据实际场景决定
+
+  1.2.1 继承Thread类
+
+  两种方式：extents Thread ,implement Runnable
+
+  启动线程：
+  public class MyThread() extends Thread{
+           @Override
+           public void run(){
+                super.run();
+                System.out.println("MyThread")
+            }
+       public  static   void  main(String[] args){
+            MyThread m  = new MyThread();
+            m.start();//耗时大
+            System.out.println("运行结束");//耗时小
+       }
+  }
+
+  start()方法耗时的原因是执行了多个步骤
+  1）通过JVM告诉操作系统创建Thread。
+  2）操作系统开辟内存并使用Windows SDK 中createThread()函数创建Thread线程对象
+  3）操作系统对Threead对象进行调度，以确定执行时机
+  4)Thread在操作系统中被成功执行
+
+  一般情况下会先输入
+  运行结束
+  MyThread
+
+  这就说明了多线程的随机性
+  遇到这种情况我们可以人为的干预加入m.sleep(1000)以毫秒为单位，在输出 "运行结束"前有足够的时候去输入MyThread
+
+  public class MyThread() extends Thread{
+             @Override
+             public void run(){
+                  super.run();
+                  System.out.println("MyThread")
+              }
+         public  static   void  main(String[] args){
+              MyThread m  = new MyThread();
+
+              m.start();//耗时大
+              m.sleep(1000);//1秒后运行 "运行结束"
+              System.out.println("运行结束");//耗时小
+         }
+  }
+  1.2.2  使用常见命令分析线程的信息（略。。。）
+
+  1.2.3 线程随机性的表现
+
+  package com.fanke.Thread.第一章;
+
+  public class Test_1_2_3 extends Thread{
+
+      @Override
+      public void run(){
+          for(int i = 0; i < 10000; i++){
+              System.out.println("run=" + Thread.currentThread().getName());
+          }
+      }
+
+      public static void main(String[] args) {
+          Test_1_2_3 test123 = new Test_1_2_3();
+          test123.setName("MyThread");
+          test123.start();//线程启动
+
+          for(int i = 0; i < 10000; i++){
+              System.out.println("main=" + Thread.currentThread().getName());
+          }
+      }
+  }
+
+  结果会出现乱序的原因：CPU将时间片分给不同的线程，线程获得时间片后执行任务，所以这些线程
+  在交替地执行并输出，导致输出出现乱序的效果
+
+  注意：CPU在不同的线程上进行切换是需要耗时的，所以并不是创建的线程越多，软件运行效率就越高，
+  相反，线程数过多反而会降低软件的执行效率。
+
+  1.2.4 执行start()的顺序不代表执行run()的顺序
+    package com.fanke.Thread.第一章;
+
+    public class Test_1_2_4 extends Thread{
+        private int i;
+
+        public Test_1_2_4(int i){
+            super();
+            this.i = i;
+        }
+
+        @Override
+        public void run(){
+            System.out.println(i);
+        }
+
+        public static void main(String[] args) {
+
+            Test_1_2_4 test124 = new Test_1_2_4(1);
+            Test_1_2_4 test125 = new Test_1_2_4(2);
+            Test_1_2_4 test126 = new Test_1_2_4(3);
+            Test_1_2_4 test127 = new Test_1_2_4(4);
+            Test_1_2_4 test128 = new Test_1_2_4(5);
+
+            test124.start();
+            test125.start();
+            test126.start();
+            test127.start();
+            test128.start();
+        }
+
+    }
+    结果： 2 1 3 4 5
+
+  1.2.5 实现Runnable接口和继承Thread的区别
+  Runnable:可以间接的实现多线程，提高数据共享性，Thread的继承是有限的
+
+  1.2.8 实例变量共享造成的非现场安全问题与解决方案
+  不共享数据的情况
+    服务器——客户端   服务器——客户端   服务器——客户端
+    实现：
+    package com.fanke.Thread.第一章;
+
+    public class Thread_1_2_8 extends Thread {
+        private int count = 5;
+
+        public Thread_1_2_8(String name) {
+            super();
+            this.setName(name);
+        }
+
+        @Override
+        public void run() {
+            super.run();
+            while (count > 0) {
+                count--;
+                System.out.println("由" + this.currentThread().getName() + "计算,count=" + count);
+            }
+        }
+
+        public static void main(String[] args) {
+            Thread_1_2_8 a = new Thread_1_2_8("a");
+            Thread_1_2_8 b = new Thread_1_2_8("b");
+            Thread_1_2_8 c = new Thread_1_2_8("c");
+
+            a.start();
+            b.start();
+            c.start();
+        }
+    }
+
+    结果：
+        由b计算,count=4
+        由c计算,count=4
+        由c计算,count=3
+        由c计算,count=2
+        由a计算,count=4
+        由a计算,count=3
+        由a计算,count=2
+        由a计算,count=1
+        由a计算,count=0
+        由c计算,count=1
+        由b计算,count=3
+        由b计算,count=2
+        由b计算,count=1
+        由b计算,count=0
+        由c计算,count=0
+
+  共享数据的情况:
+     服务器 —— 客户端1，客户端2，客户端3
+
+     实例：
+     package com.fanke.Thread.第一章;
+
+     public class Thread_1_2_8_1 extends Thread {
+         private int count = 5;
+
+         public Thread_1_2_8_1(String name) {
+             super();
+             this.setName(name);
+         }
+
+         @Override
+         public void run() {
+            //此实例不要使用while语句，会造成其他线程得不到运行的机会
+            //因为第一个执行while语句的线程会将count值减到0
+            //一直由一个线程进行减肥运行
+            super.run();
+             while (count > 0) {
+                 count--;
+                 System.out.println("由" + this.currentThread().getName() + "计算,count=" + count);
+             }
+         }
+
+         public static void main(String[] args) {
+             Thread_1_2_8_1 a = new Thread_1_2_8_1("a");
+             Thread_1_2_8_1 b = new Thread_1_2_8_1("b");
+             Thread_1_2_8_1 c = new Thread_1_2_8_1("c");
+
+             a.start();
+             b.start();
+             c.start();
+         }
+     }
+
+     结果：
+     由a计算,count=4
+     由a计算,count=3
+     由a计算,count=2
+     由a计算,count=1
+     由a计算,count=0
+     由b计算,count=4
+     由b计算,count=3
+     由b计算,count=2
+     由b计算,count=1
+     由b计算,count=0
+     由c计算,count=4
+     由c计算,count=3
+     由c计算,count=2
+     由c计算,count=1
+     由c计算,count=0
+
+  1.2.9 Servlet技术造成的非线程安全问题与解决方案
+  package com.fanke.Thread.第一章;
+
+  public class Thread_1_2_9  {
+
+      private static String usernameRef;
+      private static String passwordRef;
+
+      public static void doPost(String username, String password){
+          try{
+              usernameRef = username;
+              if(username.equals("a")){
+                  Thread.sleep(5000);
+              }
+              passwordRef = password;
+
+              System.out.println("username=" + username + "password" + password);
+          }catch (InterruptedException e){
+              e.printStackTrace();
+          }
+      }
+
+  }
+
+  常用方法
+   currentThread()：返回代码段正在被哪个线程调用
+   例如： Thread.currentThread.getName()
+   run()和start()方法的区别
+   my.run():立即执行run()方法，不启动新的线程
+   my.start():执行run()方法时机不确定，启动新的线程
+
+   isAlive()：判断当前的线程是否存活
+   this.isAlive()；
+
+   sleep(long millis)：在指定的时间(毫秒)内让当前"正在执行的线程"休眠
+
+   sleep(long millis,int nanos)：在指定的毫秒数加指定的纳秒数内让当前正在执行的线程休眠(暂停执行)
+   此操作会受到系统计时器和调度程序的精度和准确性的影响
+
+   StackTraceElement[] getStackTrace()：返回一个表示该线程堆栈跟踪元素数组
+
+   static void dumpStack()：将当前线程的堆栈跟踪信息输出到标准错误流。该方法仅用于调试。
+
+   static Map<Thread,StackTraceElement[]> getAllStackTraces()：返回所有活动线程堆栈跟踪的一个映射
+
+   getId()：用于取得线程的唯一标识
+
+   1.10 停止线程
+    有三种方法
+    1）使用退出标志使线程正常退出
+    2）使用stop()方法强行终止线程，但是这个方法不推荐使用，因为stop()和suspend()，resume()一样，都是作废过期的方法
+    使用他们可能发生不可预料的结果
+    3）使用interrupt()：中断线程
+
+   第一种：调用interrupt()，只是在当前线程中做了一个停止的标记，并不是真正停止线程。
+   package com.fanke.Thread.第一章;
+
+   public class Thread6 extends Thread {
+       @Override
+       public void run() {
+           super.run();
+           for (int i = 0; i < 5000; i++) {
+               System.out.println("i=" + (i + 1));
+           }
+       }
+
+       public static void main(String[] args) throws InterruptedException {
+           Thread6 thread6 = new Thread6();
+           thread6.start();
+           Thread6.sleep(2000);
+           Thread6.interrupted();//在5000线程当前停下做一个标记
+       }
+   }
+
+   1.11.2 判断线程是否为停止状态
+   1)public static boolean interrupted()：测试currentThread()是否已经中断。
+   2)public boolean this.isInterrupted()：测试this关键字所在类的对象是否已经中断。
+
+   这两个方法的区别：
+   this.interrupted()：测试当前线程是否已经是中断状态，执行后具有清除状态标志值为false的功能
+   this.isInterrupted()：测试线程Thread对象是否已经是中断状态，不清除状态标志
+
+   1.11.3 能停止的线程——异常法
+   通过线程的for语句判断一下线程是否处于停止状态即可判断后面的代码是否可运行，如果线程处于停止状态，则后面代码不再运行
+   代码如下：Thread_for_interrupted.java 区别在于run()里面判断后使用break跳出循环，但是for下面的还是会运行
+
+   优化后的例子：Thread_for_interrupted_Exception，直接throw InterruptedException抛异常就终止了
+
+   1.11.4 在sleep状态下停止线程
+   代码：Sleep_Thread1.java
+
+         Sleep_Thread2.java
+
+    不管其调用的顺序，只要interrupt()和sleep()方法碰到一起就会出现异常。
+    1)在sleep()方法可以强行停止线程，即暴力停止线程。
+    2)调用interrupt()方法给堆栈线程打了中断的标记，再执行sleep()方法也会出现异常。
+
+    1.11.5 用stop()方法暴力停止线程(作废的方法)
+    使用stop()方法可以强行停止线程，即暴力停止线程会造成一些请理性的工作可能得不到完成，或者数据添加不完整
+
+    1.11.6 使用“return”语句停止线程的缺点与解决方案
+    不建议使用，每个return；代码前都要搭配一个写入日志的代码，这样会使代码出现多余，不利于代码的阅读与扩展，
+    可以直接使用抛异常来处理
+
+    1.12 暂停线程
+    暂停线程意味着此线程还可以恢复运行，在java多线程中，可以使用suspend()方法暂停线程，使用resume()方法来
+    恢复线程的执行
+
+    代码如下：suspend_resume_test.java
+
+    suspend()方法与resume()方法的缺点——独占
+    如果suspend()方法与resume()方法使用不当，极易造成公共同步对象被独占，其他线程无法访问公共同步对象的结果
+
+    代码：SynchronizedObject.java
+
+    1.12.3 suspend()与resume()方法的缺点——数据不完整
+    在使用suspend()方法与resume()方法时也容易出现线程暂停，进而导致数据不完整的情况
+    代码：Suspend_resume_nosameValue.java
+
+    1.13 yieId()方法
+    yieId():放弃当前的CPU资源，让其任务去占用CPU执行时间，放弃的时间不稳定，有可能刚刚放弃，马上又获得CPU时间片
+
+    1.14 线程的优先级(让高优先级的线程获得更多的CPU时间片)
+    线程的优先级分为1到10级，如果优先级小于1或大于10，则JDK抛出异常 throw new IllegalArgumentException()。
+
+    JDK使用3个常量来预置定义优先级的值
+    public final static int MIN_PRIORITY = 1;
+    public final static int NORM_PRIORITY = 5;
+    public final static int MAX_PRIORITY = 10;
+
+    1.14.1 线程的优先级的继承特性
+    在JAVA中，线程的优先级具有继承性，例如，A线程启动B线程，则B线程的优先级与A线程是一样的。
+    代码：Thread_1_14_1.class
+
+    1.14.2 优先级的规律性
+    虽然使用setPriority()方法可以设置线程的优先级，但还没有看到设置优先级所带来的效果。
+    代码：Thread_SetPriority.class
+
+    1.14.3 优先级的随机性
+    线程的优先级的“随机性” 表现在优先级较高的线程不一定每一次都先执行完
+    代码：Thread_Random.class
+
+    结论：优先级较高并不一定每一次都先执行完run()方法中的任务，也就是线程优先级与输出顺序无关，这两者并
+    没有依赖关系，他们具有不确定性、随机性。
+
+    1.14.4 优先级对线程运行速度的影响
+    代码：Thread_countPriority.class
+
+    总结：优先级越高对运行速度影响越大，相反，优先级越低对运行速度越小。
+
+    1.15 守护线程
+    Java中有两种线程，一种是用户线程，也称非守护线程；另一种是守护线程
+    什么是守护线程：守护线程是一种特殊的线程，当进程中不存在非守护线程了，则守护线程自动销毁。
+    典型的线程是垃圾回收线程
+
+    例子：任何一个守护线程都可以看作整个JVM中所有非守护线程的 "保姆" ，只要当前JVM实例中存在任何一个非守护线程
+    没有结束(好比幼儿园中的小朋友)。那么守护线程(也就是“保姆”)就要工作，只要当最后 一个非线程结束时(好比幼儿园
+    中没有小朋友了)，则守护线程(也就是 "保姆")随着JVM一同结束工作。守护Deamon线程的作用就是为其他线程的运作提供
+    便利服务，最典型的应用就是GC(垃圾回收器)。综上所述，当最后一个用户线程销毁了，守护线程退出，进程也随即结束了。
+
+    本实例中，主线程main属于用户线程，凡是调用setDaemon(true)代码并且传入true值的线程才是守护线程
+    代码：daemonThread.class
+
+    注意：必须在start()启动线程方法前调用thread.setDaemon(true)，不然会出现IllegalThreadStateException
+
+
+
+
+
+

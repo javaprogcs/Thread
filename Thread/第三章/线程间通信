@@ -1,0 +1,337 @@
+线程间进行通信后系统之间的交互性会更强大，在大大提高CPU利用率的同时也会使程序员对各线程任务的处理过程有更有效
+把控和监督。本章着重掌握的技术点如下：
+    如何使用wait/notify实现线程间的通信；
+    生产者/消费者模式的实现；
+    join方法的使用；
+    ThreadLocal类的使用
+
+  3.1 wait/notify机制
+    线程与线程之间不是独立的个体，它们彼此是可以互相通信和协作的。
+
+  3.2.1 不使用wait/notify机制实现线程间通信
+  代码：TwoThreadTransData/MyList.java
+  虽然两个线程间实现了通信，但缺点是线程ThreadB.java不停地通过while语句轮询机制来检测某一个条件，这样会浪费CPU资源。
+  如果轮询的时间间隔更小，则更浪费CPU资源；如果轮询的时间间隔很大，则有可能取不到想要的数据。
+
+  3.1.2 wait/notify机制
+    wait/notify机制在生活中比比皆是，例如在就餐时就会出现
+
+    服务员 ——>   菜品传递台   <——  厨师
+
+    厨师和服务员的交互发生在 "菜品传递台" 上，在这期间需考虑以下几个问题。
+    1）厨师做完一个菜的时间未定，所以厨师将菜品放到 "菜品传递台" 上的时间也未定。
+    2）服务员取到菜的时间取决于厨师，所以服务员就有 "等待" (wait)状态。
+    3）服务员如何取到菜呢，这取决于厨师，厨师将菜放在 "菜品传递台" 上，其实相当于一种通知(notify)，这时服务员才可以拿到菜并交给餐者。
+    在这个过程中出现了wait/notify机制。
+
+  3.1.3 wait/notify机制的原理
+  拥有相同锁的线程才可以实现wait/notify机制，所以后面的描述中都是假定操作同一个锁。
+       wait方法是Object类的方法，它的作用是使当前执行wait()方法的线程等待，在wait()所在的代码行处暂停执行，并释放锁，直到接到通知或被中断为止。
+  在调用wait()之前，线程必须获得该对象的对象级别锁，即只能在同步方法或同步块中调用wait()方法。通过知道机制使某个线程继续执行wait()方法后面的代码时，
+  对线程的选择是按照执行wait()方法的顺序确定的，并需要重新获得锁。如果调用wait()时没有持有适当的锁，则抛出IllegaMonitorStateException，它是
+  RuntimeException的一个子类，因此不需要try-catch语句捕抓异常。
+       notify()方法要在同步方法或同步块中调用，即在调用前，线程必须获得锁，如果调用notify()时没有持有适当的锁，则会抛出IllegalMonitorStateException.
+  该方法用来通知其他那些可能等待该锁的其他线程，如果有多个线程等待，则按照执行wait()方法的顺序对处于wait状态的线程发出一次通知(notify)，并使该线程
+  重新获取锁。需要说明的是，执行notify()方法后，当前线程不会马上释放该锁，呈wait状态的线程也并不能马上获取该对象锁，要等到执行notify()方法的线程将
+  程序执行完，也就是退出synchronized同步区域后，当前线程才会释放锁，而呈wait状态的线程才可以获取该对象锁。当第一个获得了该对象锁的wait线程运行完毕后，
+  它会释放该锁对象。当第一个获得了该对象锁的wait运行完毕后，它会释放该对象锁，此时如果没有再次使用notify语句，那么其他呈wait状态的线程因为没有得到
+  通知，会继续处于wait状态。
+    总结：wait()方法使线程暂停运行，而notify()方法通知暂停的线程继续运行。
+
+  3.1.4 wait()方法的使用
+  线程不能永远等待下去，那样程序就停止不前，不能继续向下运行，如何使呈wait状态继续运行呢？答案就是notify()方法。
+
+  3.1.5 完整实现wait/notify机制
+   WaitAndNotify/Test.java
+
+  从程序运行结果来看，3S后线程被通知(notify)唤醒。
+
+  3.1.6 使用wait/notify机制实现list.size()等于5时的线程销毁
+  如何使用wait()与notify()来实现前面list.size()值等于5时的线程销毁。
+  代码：wait_notify_size5/MyList.java
+  日志信息wait end在最后输出，这说明notify()方法执行后并不立即释放锁，这个知识点在后面章节会进行详细介绍。
+  关键字synchronzied可以将任何一个Object对象作为锁来看待，而Java为每个Object都实现了wait()和notify()方法，它看待，而java为每个Object都实现了wait()
+  和notify()方法，它们必须用在被synchronized同步的Object的临界区内。通过调用wait()方法可以使处于临界区内的线程进入等待状态，同时释放被同步对象的锁，
+  而notify操作可以唤醒一个因调用了wait操作而处于wait状态中的线程，使其进入就绪状态，被重新唤醒的线程会试图重新获得临界区的控制权，也就是锁，并继续
+  执行临界区内wait之后的代码。如果发出notify操作时没有处于wait状态中的线程，那么该命令会被忽略。
+
+  wait()方法可以使调用该方法的线程释放锁，然后从运行状态换成wait状态，等待被唤醒。
+
+  notify()方法按照执行wait()方法的顺序唤醒等待同一锁的 "一个" 线程，使其进入可运行状态，即notify()方法仅通知 "一个" 线程。
+
+  notifyAll()方法执行后，会按照执行wait()方法相反的顺序依次唤醒全部的线程。
+
+  3.1.7 对业务代码进行封装
+  wait_notify_service/MyList.java
+
+  3.1.8 线程状态的切换
+  前面的章节已经介绍了与Thread有关的大部分API，这些API可以改变线程对象的状态。
+  1）创建一个新的线程对象后，调用它的start()方法，系统会为此线程分配CPU资源，此时线程处于runnable(可运行)状态，这是一个准备运行的阶段。如果线程抢占
+  到CPU资源，则此线程就处于running(运行)状态。
+  2）runnable状态和running状态可互相2切换，因为有可能线程运行一段时间后，其他高优先级的线程抢占了CPU资源，这时此线程就从running状态变成runnable状态。
+        线程进入runnable状态大体分为如下4种情况。
+            调用sleep()方法后经过的时间超过了指定的休眠时间；
+            线程成功获得了试图同步的监视器；
+            线程正在等待某个通知，其他线程发出了通知；
+            处于挂起状态的线程调用了resume恢复方法。
+  3）blocked是阻塞的意思，例如，如果遇到了一个I/O操作，此时当前线程由runnable运行状态转成blocked阻塞状态，等待I/O操作的结果，这时操作系统会把宝贵的CPU时间
+  片分配给其他 线程，当I/O操作结束后，线程由blocked状态结束，进入runnable状态，线程会继续运行后面的任务。
+        出现阻塞的情况大体分为如下5种。
+            线程调用sleep()方法，主动放弃占用的处理器资源。
+            线程调用了阻塞式I/O方法，在该方法返回前，该线程被阻塞。
+            线程试图获得一个同步监视器，但该同步监视器正被其他线程所持有。
+            线程等待某个通知notify()
+            程序掉哟个了suspend()方法将该线程挂起。此方法容易导致死锁，应尽量避免使用该方法。
+  4）run()方法运行结束后进入销毁阶段，整个线程执行完毕。
+
+  3.1.9 wait()方法：立即释放锁
+    执行wait()方法后，锁被立即释放。
+    sleep()方法：不释放锁，如果将wait()方法改成sleep()方法，就获得了同步的效果，因为sleep()方法不释放锁。
+    代码：waitReleaseLock/Service.java
+
+  3.1.11 notify()方法：不立即释放锁
+    执行notify()方法后，不立即释放锁。
+    代码：notifyHoldLock/MyService.java
+
+    总结：必须执行完notify()方法所在的同步synchronized代码块后才释放锁。
+
+  3.1.12 interrupt()方法遇到wiat()方法
+    当线程调用wait()方法后，再对该线程对象执行interrupt()方法会出现Interrupt-Exception异常。
+    代码：waitInterruptException/Service.java
+    总结：
+        1）执行完notify()方法后，按照执行wait()方法的顺序唤醒其他线程，notify()所在的同步代码块执行完才会释放对象的锁，其他线程继续执行wait()之后的代码。
+        2）在执行同步代码块的过程中，遇到异常而导致线程终止，锁也会被释放。
+        3）在执行同步代码块的过程中，执行了锁所属对象的wait()方法，这个线程会释放对象锁，等待被唤醒。
+
+  3.1.13 notify()方法：只通知一个线程
+    每调用一次notify()方法，只通知一个线程进行唤醒，唤醒的顺序与执行wait()方法的顺序一致。
+    代码：notifyOne/MyService
+    notify()方法仅按照执行wait()方法顺序依次唤醒一个线程，分别是Thread-()、Thread-5、Thread-4、Thread-3、Thread-2.
+
+  3.1.14 notifyAll()方法：通知所有线程
+    notifyAll()：为了唤醒全部线程可以使用nofityAll()方法。
+
+    notifyAll()方法会按照执行wait()方法的倒序依次对其他线程进行唤醒。
+    唤醒的顺序是正序、倒序、随机，取决于具体的JVM实现，不是所有的JVM在执行notify()时都是按调用wait()方法的正序进行唤醒的，也不是所有的JVM在执行notifyAll()时
+    都是按调用wait()方法的倒序进行唤醒的，具体的唤醒顺序依赖于JVM的具体实现。
+
+  3.1.15  wait(long)方法的基本使用
+    带一个参数的wait(long)方法的功能是等待某一时间内是否有线程对锁进行notify()通知唤醒，如果超过这个时间则线程自动唤醒。能继续向下运行的前提是再次持有锁。
+    代码：waitHasParamMethod/myRunnable.java
+
+  3.1.16 wait(long)方法自动向下运动需要重新持有锁
+     wait(long)方法想要向下运行也要持有锁，如果没有锁，则一直在等待，直到持有锁为止。
+     代码：wait_time_backLock/MyService.java
+
+  3.1.17 通知过早问题与解决方法
+    如果通知过早，则会打乱程序正常的运行逻辑
+    代码：firstNotify/MyRun.java
+
+  3.1.18 wait条件发生变化与使用while的必要性
+    在使用wait/notify模式时，还需要注意一种情况，即wait条件发生变化，容易造成逻辑的混乱。
+    代码：waitOld/Add.java
+
+  3.1.19 生产者/消费者模式的实现
+  wait/notify模式最经典的案例就是生产者/消费者模式，但此模式在使用上有几种 "变形"，还有一些注意事项，但原理都是基于wait/notify的。
+  案例：p_r_test/生产者P.java
+
+  3.1.20  通过管道进行线程间通信-----字节流
+    Java语句提供了各种各样的输入/输出流，使我们能够方便地对数据进行操作，其中管道流是一种特殊的流，用于在不同线程间直接传送数据。一个线程
+    发送数据道输出管道，另一个线程从输入管道中读数据。通过使用管道，实现不同线程间的通信，而无须借组于类似临时文件之类的东西。
+    JavaJDK提供了4个类来使线程间可以进行通信，即PipedInputStream和Piped-OutputStream、PipedReader和PipedWriter。
+    创建测试用的项目pipInputOutput/
+    代码PipedInputStream.connect(outputStream)或outputStream.connect(inputStream)的作用是使两个管道之间建立通信连接
+
+  3.1.21 通过管道进行线程间通信————字符流
+  在管道中还可以从传递字符流。创建测试用的项目：pipeReaderWriter/WriteData.java
+
+  3.1.22 实现wait/notify的交叉备份
+  实现创建20个线程，其中10个线程用于数据备份到A数据库中，另外10个线程用于将数据备份到B数据库中，并且备份A数据库和B数据库是交叉的效果。
+  创建测试用的项目，名称为：wait_notify_insert_test/DBTools.java
+
+  3.2 join()方法的使用
+  作用：等待线程对象销毁。
+  使用实例：joinTest/MyThread.java
+  join()方法具有线程排队运行的效果，有些类似同步的运行效果，但是join()方法与synchronized的区别是join()在内部使用wait()方法进行等待，
+  而synchronized关键字使用锁做为同步。
+
+  3.2.2 join()方法和interrupt()方法出现异常
+  在使用join()方法的过程中，如果当前线程对象被中断，则当前线程出现异常。
+  测试项目：joinException/ThreadA.java
+  总结：
+  join()方法与interrupt()方法如果彼此遇到，则出现异常，不管先后顺序。
+  
+  3.2.3 join(long)方法的使用
+    x.join(long)方法中的参数用于设定等待的时间，不管x线程是否执行完毕，时间到了并且重新获得了锁，则当前线程会继续向后运行。
+    如果没有重新获得锁，则一直尝试。直到获得锁为止。
+    创建的项目：joinLong/MyThread.java
+
+  3.2.4 join(long)方法与sleep(long)方法的区别
+    join(long)方法的功能在内部是使用wait(long)方法来进行实现的，所以join(long)方法具有释放锁的特点。
+    join(long)方法源码代码如下：
+    public final synchronized void join(long millis)
+        throws InterruptedException {
+            long base = System.currentTimeMillis();
+            long now = 0;
+
+            if (millis < 0) {
+                throw new IllegalArgumentException("timeout value is negative");
+            }
+
+            if (millis == 0) {
+                while (isAlive()) {
+                    wait(0);
+                }
+            } else {
+                while (isAlive()) {
+                    long delay = millis - now;
+                    if (delay <= 0) {
+                        break;
+                    }
+                    wait(delay);
+                    now = System.currentTimeMillis() - base;
+                }
+            }
+        }
+  从源代码中可以了解到，当执行wait(long)方法后当前线程的锁被释放，那么其他线程就可以调用此线程中的同步方法了。
+  而Thread.sleep(long)方法却不释放锁，
+  区别：
+  Thread.sleep(long)方法不释放锁。
+  Thread.join()释放锁。
+
+  3.2.7 join(long millis,int nanos)方法的使用
+    作用：等待该线程终止的时间最长为millis毫秒 + nanos纳秒。如果参数nanos < 0或者 nanos > 999999，则出现异常 "nanosecond timeout value out of range"
+
+  3.3 类ThreadLocal的使用
+    主要作用：将数据放入当前线程对象中的Map中，这个Map是Thread类的实例变量。类ThreadLocl自己不管理，不存储任何数据，它只是数据和Map之间的桥梁，用于
+    将数据放入Map中，执行流程如下：数据——》ThreadLocal----->currentThread()------>Map。
+
+        线程、Map、数据之间的关系可以做以下类比：
+         人(Thread)随身带有兜子(Map)，兜子(Map)里面有东西(value)，这样，Thread随身也有自己的数据了，随时可以访问自己的数据了。
+
+  3.3.1 get()方法与null
+  如果从未在Thread中的Map存储ThreadLocal对象对应的value值，则get()方法返回Null。
+  创建名称为ThreadLocalII的项目，类Run.java
+
+  3.3.2 类ThreadLocal存取数据流程分析
+    下面通过测试程序来从JDK源代码的角度分析一下ThreadLocal类执行存取操作的流程：
+    public class  Test{
+        public static void main(String[] args) throws IOException,InterruptException{
+            ThreadLocal local = new ThreadLocal();
+            local.set("我是任意的值");
+            System.out.println(local.get());
+        }
+    }
+    1)执行ThreadLocal.set("我是任意的值")代码时，ThreadLocal代码如下：
+    public void set(T value){
+        Thread t = Thread.currentThread();//对象t就是main线程
+        ThreadLocalMap map = getMap(t);//从main线程中获得ThreadLocalMap
+        if(map != null)//不是第一次调用set方法时，map值不是Null
+            map.set(this.value);
+        else
+            createMap(t,value);//是第一次调用set方法时，执行createMap()方法
+    } //此源代码在ThreadLocal.java中
+
+    2）代码ThreadLocalMap map = getMap(t)中的getMap(t)的源代码如下：
+        ThreadLocalMap getMap(Thread t){ //参数t就是前面传入的main线程
+            return t.threadLocals;
+            //返回main线程中threadLocals变量对应的ThreadLocalMap对象
+        }此源代码在ThreadLocals.java类中
+
+    3）声明变量t.threadLocals的源代码如下：
+       public class Thread implements Runnable{
+            ThreadLocal.ThreadLocalMap threadLocals = null;//默认值为null
+            对象threadLocals数据类型就是ThreadLocal.ThreadLocalMap,变量threadLocals是Thread类中的实例变量。
+       }
+
+    4）取得Thread中的ThreadLocal.ThreadLocalMap后，第一次向其存放数据时会调用createMap()方法来创建ThreadLocal.ThreadLocalMap对象，
+    因为ThreadLocal.ThreadLocalMap  threadLocals对象默认值是null，执行createMap()方法的源代码如下：
+
+    此源码在ThreadLocal.java类中
+        public void set(T value){
+            Thread t = Thread.currentThread();
+            ThreadLocalMap map = getMap(t);
+            if(map != null)
+                map.set(this,value);
+            else
+                createMap(t,value);
+        }
+
+    5)createMap()方法的功能是创建一个新的ThreadLocalMap,并向这个新的ThreadLocalMap存储数据，ThreadLocalMap中的key就是当前的ThreadLocal对象，
+    值就是传入的value。createMap()方法源代码如下：
+        void createMap(Thread t, T firstValue){
+            t.threadLocals = new ThreadLocalMap(this,firstValue);
+        }//此源代码在ThreadLocal.java类中
+    在实例化ThreadLocalMap的时候，向构造器方法传入this和firstValue，参数this就是当前ThreadLocal对象，firstValue就是调用ThreadLocal对象set()
+    方法传入的参数值。
+
+    6）new ThreadLocalMap(this,firstValue)构造方法的源代码如下：
+        此源代码在ThreadLocal.java类中。
+            ThreadLocalMap(ThreadLocal<?> firstKey, Object firstValue){
+                table = new Entry[INITIAL_CAPACITY];
+                int i = firstKey.threadLocalHashCode & (INITIAL_CAPACITY
+                table[i] = new Entry(firstKey,firstValue); //核心代码
+                size = 1;
+                setThreshold(INITIAL_CAPACITY);
+            }
+
+    在源代码中可以发现，ThreadLocal对象与firstValue被封装进Entry对象中，并放入table[]数组中。
+
+    7)table[]数组的源代码如下：
+        static class  ThreadLocalMap{
+            ....
+            private Entry[]  table;
+            ...//源代码在ThreadLocal.java类中变量table就是Entry[]数组类型。
+
+        }
+
+  经过上面7个步骤，成功将value通过ThreadLocal放入当前线程currentThread()中的ThreadLocalMap对象中。
+
+  下面看看get()执行流程。当执行"System.out.println(local.get());"代码时，Thread-Local.get()源代码如下：
+    public T get(){
+        Thread t = Thread.currentThread();//t就是main线程
+        ThreadLocalMap map = getMap(t);//从main线程中获得 Map
+        if(map != null){//进入此分支，因为map不是Null
+            //执行getEntry()以this作为key，获得对应的Entry对象
+            ThreadLocalMap.Entry e = map.getEntry(this);
+            if(e != null){ //进入此分支，因为Entry对象不为null
+                @SuppressWarnings("unchecked")
+                T result = (T)e.value;//从Entry对象中取得value并返回
+                return result;
+            }
+        }
+        return setInitialValue();
+    }//此源代码在ThreadLocal.java类中
+
+    上面就是get()方法的执行过程。
+    上面就是set()和get()的执行流程，流程比较麻烦，为什么不能直接向Thread类中的ThreadLocalMap对象存取数据呢？这是不能实现的。
+          ThreadLocal.ThreadLocalMap threadLocals = null;
+          变量threadLocals默认是包级访问
+    变量threadLocals默认是包级访问，所以不能直接从外部访问该变量，只有同包中的类可以访问threadLocals变量，而ThreadLocal和Thread恰好在
+    同一包中，源代码如下
+        package java.lang;
+       由于在同一个lang包下，所以外部代码通过ThreadLocal可以访问Thread类中的"秘密对象" ————ThreadLocalMap。
+
+  3.3.3 验证线程变量的隔离性
+    下面通过实例来验证通过ThreadLocal可向每个线程中存储自己的私有数据。
+    创建测试用的项目ThreadLocalTest/Tools.java
+    程序运行结果表明通过ThreadLocal可向每一个线程存储自己的私有数据
+
+  3.3.4 解决get()方法返回null问题
+        在第一次调用ThreadLocal类的get()方法时，返回值是Null，怎样实现第一次调用get()不返回Null呢？也就是说使其具有默认值的效果呢？
+        创建名称为ThreadLocal22/ThreadLocalExt.java
+
+  3.3.5 验证重写initialValue()方法的隔离性
+  创建项目：ThreadLocal33/Tools.java
+
+  3.4  类InheritableThreadLocal的使用
+  使用类InheritableThreadLocal可使子线程继承父线程的值.
+
+  3.4.1 类ThreadLocal不能实现值继承特性.
+
+  3.4.6 子线程可以感应对象属性值的变化
+
+  3.4.7 重写childValue()方法实现对继承的值进行加工
+
+  总结：可以使以前分散的线程对象进行通信与协作，线程任务不再是 "单打独斗"，更具有 "团结性"，因为它们之间可以互相通信，就像命令官与执行者一样。
+  对任务的执行规划更加合理，不再具有随机性与盲目性。

@@ -1,0 +1,28 @@
+定时/计划功能在移动开发领域应用较多，如Android技术。定时、计划任务功能在Java中主要使用Timer对象实现，它在内部使用多线程的方式进行处理。
+所以它和线程技术有非常打的关联。本章着重掌握如下技术点：
+    如何实现按指定时间执行任务；
+    如何实现按指定周期执行任务。
+
+  5.1 定时器Timer的使用
+    在JDK库中，Timer类的主要作用是设置计划任务，即在指定时间开始执行某一个任务。
+    TimerTask类的主要作用是封装任务。
+    执行计划任务的代码要放入TimerTask的子类中，因为TimerTask是一个抽象类。
+
+  5.1.1 schedule(TimerTask task,Date time)方法的测试
+    作用：在指定日期执行一次某一任务
+    测试代码：timerTest1/MyTask.java
+    结果：运行10s之后,Timer-0线程还在运行，出现这个问题的原因如下：
+
+    2.TimerThread线程不销毁的原因
+      原因：创建Timer对象时启动了一个新的非守护线程，JDK源代码如下：
+       public Timer(){
+            this.("Timer" + serialNumber());
+       }
+       此构造方法调用的构造方法如下：
+       private final TimerThread thread = new TimerThread(queue);
+       public Timer(String name){
+            thread.setName(name);
+            thread.start();
+       }
+
+    以下省略。。。
